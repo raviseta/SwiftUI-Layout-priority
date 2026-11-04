@@ -2,6 +2,13 @@
 
 A small, interactive SwiftUI project
 
+## Screenshots
+
+| HStack | ZStack | Custom Layout |
+| :---: | :---: | :---: |
+
+<img width="220" height="440" alt="03-custom" src="https://github.com/user-attachments/assets/dde55e05-c645-46c4-8920-3c05185d19c8" />
+
 ## Run
 
 Open `Layout-priority.xcodeproj` in Xcode 27.2 or later, select the **Layout-priority** scheme and an iOS 27.2 simulator, and press Run. No packages, network access, or account setup are required by the app.
