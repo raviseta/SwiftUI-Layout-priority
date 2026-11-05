@@ -2,12 +2,9 @@
 
 A small, interactive SwiftUI project
 
-## Screenshots
+## Video
 
-| HStack | ZStack | Custom Layout |
-| :---: | :---: | :---: |
-
-<img width="220" height="440" alt="03-custom" src="https://github.com/user-attachments/assets/dde55e05-c645-46c4-8920-3c05185d19c8" />
+https://github.com/user-attachments/assets/4f3bc3ae-7ac7-412f-934c-f0f59ddd8d9c
 
 ## Run
 
