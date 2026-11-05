@@ -19,3 +19,8 @@ Open `Layout-priority.xcodeproj` in Xcode 27.2 or later, select the **Layout-pri
 Compare `0`, `1`, `100`, and `−1`. The code drawer follows the current experiment. VoiceOver labels include block priorities and measured widths. Animations respect Reduce Motion.
 
 The examples deliberately use flexible shapes. Text, fixed-size content, and other containers can respond differently; these examples are not a universal sizing rule.
+
+## License
+
+This project is licensed under the MIT License.
+See the [LICENSE](LICENSE) file for details.
