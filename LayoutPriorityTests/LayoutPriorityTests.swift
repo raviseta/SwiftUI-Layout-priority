@@ -103,6 +103,66 @@ final class LayoutPriorityTests: XCTestCase {
         }
     }
 
+    func testViewThatFitsUsesDeclarationOrderRatherThanChildPriority() async throws {
+        for compactFirst in [false, true] {
+            for prioritizedCandidate in FitCandidate.allCases {
+                for priority in [-1.0, 0, 1, 100] {
+                    for width in [320.0, 240, 160] {
+                        let recorder = Measurements()
+                        let view = FitOrderDemo(compactFirst: compactFirst, prioritizedCandidate: prioritizedCandidate, priority: priority)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { recorder.frames[0] = $0 }
+                            .frame(width: width, height: 132)
+                        host(view)
+                        try await waitForFrames(1, recorder)
+                        // With no fitting candidate, the last declaration is the fallback.
+                        let expectedWidth: CGFloat = compactFirst
+                            ? (width >= 180 ? 180 : 300)
+                            : (width >= 300 ? 300 : 180)
+                        XCTAssertEqual(try XCTUnwrap(recorder.frames[0]).width, expectedWidth, accuracy: 1,
+                                       "compactFirst=\(compactFirst), target=\(prioritizedCandidate), priority=\(priority), width=\(width)")
+                    }
+                }
+            }
+        }
+    }
+
+    func testFixedSizeAxesControlWhetherHigherPrioritySiblingGetsMoreWidth() async throws {
+        let reference = Measurements()
+        host(Text("Account settings").font(.system(size: 18)).fixedSize()
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { reference.frames[0] = $0 })
+        try await waitForFrames(1, reference)
+        let idealWidth = try XCTUnwrap(reference.frames[0]).width
+
+        for fixesSize in [false, true] {
+            for priority in [1.0, 100] {
+                let recorder = Measurements()
+                let view = HStack(spacing: 8) {
+                    Text("Account settings").font(.system(size: 18))
+                        .lineLimit(1)
+                        // Keep ideal height in both cases; only horizontal fixing changes.
+                        .fixedSize(horizontal: fixesSize, vertical: true)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { recorder.frames[0] = $0 }
+                    Text("A longer description that must truncate").font(.system(size: 18))
+                        .lineLimit(1)
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { recorder.frames[1] = $0 }
+                        .layoutPriority(priority)
+                }.frame(width: 240, height: 44)
+                host(view)
+                try await waitForFrames(2, recorder)
+                let titleWidth = try XCTUnwrap(recorder.frames[0]).width
+                let descriptionWidth = try XCTUnwrap(recorder.frames[1]).width
+                if fixesSize {
+                    XCTAssertEqual(titleWidth, idealWidth, accuracy: 1)
+                    XCTAssertLessThan(descriptionWidth, 240 - idealWidth)
+                } else {
+                    XCTAssertLessThan(titleWidth, idealWidth)
+                    XCTAssertGreaterThan(descriptionWidth, 240 - idealWidth)
+                }
+                XCTAssertLessThanOrEqual(titleWidth + descriptionWidth + 8, 241)
+            }
+        }
+    }
+
     private func host<V: View>(_ view: V) {
         window?.isHidden = true
         let controller = UIHostingController(rootView: view)

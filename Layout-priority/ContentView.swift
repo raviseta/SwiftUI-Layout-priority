@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var blockSizes: [Int: CGSize] = [:]
     @State private var stackSize = CGSize.zero
     @State private var tourStep = 0
+    @State private var compactFirst = false
+    @State private var prioritizedCandidate = FitCandidate.compact
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -67,7 +69,7 @@ struct ContentView: View {
                 .font(.system(size: 33, weight: .bold, design: .rounded))
                 .tracking(-1)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("One modifier. Three container policies.")
+            Text("One modifier. Four container policies.")
                 .font(.subheadline).foregroundStyle(LabTheme.muted)
         }
     }
@@ -94,7 +96,8 @@ struct ContentView: View {
     }
 
     private func experimentCard(availableWidth: CGFloat) -> some View {
-        let width = min(CGFloat(canvasWidth), max(0, availableWidth))
+        let minimum = experiment == .fits ? 120.0 : 240.0
+        let width = min(CGFloat(max(canvasWidth, minimum)), max(0, availableWidth))
         return VStack(alignment: .leading, spacing: 18) {
             HStack {
                 Label(experiment.container, systemImage: experiment.symbol)
@@ -113,6 +116,8 @@ struct ContentView: View {
                     case .stacks: stackExperiment
                     case .layers: layerExperiment
                     case .custom: customExperiment
+                    case .fits:
+                        FitOrderDemo(compactFirst: compactFirst, prioritizedCandidate: prioritizedCandidate, priority: priority)
                     }
                 }
                 .frame(width: width, height: 132)
@@ -199,10 +204,36 @@ struct ContentView: View {
     }
 
     private func controls(availableWidth: CGFloat) -> some View {
-        let maximum = max(240, availableWidth)
-        let widthBinding = Binding(get: { min(canvasWidth, maximum) }, set: { canvasWidth = $0 })
+        let minimum = experiment == .fits ? 120.0 : 240.0
+        let maximum = max(minimum, availableWidth)
+        let widthBinding = Binding(get: { min(max(canvasWidth, minimum), maximum) }, set: { canvasWidth = $0 })
         return VStack(alignment: .leading, spacing: 16) {
-            if experiment != .layers {
+            if experiment == .fits {
+                VStack(alignment: .leading, spacing: 8) {
+                    controlLabel("DECLARATION ORDER")
+                    Picker("Declaration order", selection: $compactFirst) {
+                        Text("Wide first").tag(false)
+                        Text("Compact first").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("fit-order")
+                }
+                HStack {
+                    controlLabel("PRIORITIZE")
+                    Spacer()
+                    ForEach(FitCandidate.allCases) { candidate in
+                        Button(candidate.title) { prioritizedCandidate = candidate }
+                            .font(.system(size: 12, weight: .semibold))
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .background(prioritizedCandidate == candidate ? LabTheme.ink : LabTheme.surface, in: .rect(cornerRadius: 12))
+                            .foregroundStyle(prioritizedCandidate == candidate ? LabTheme.background : LabTheme.ink)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Prioritize \(candidate.title) candidate")
+                            .accessibilityAddTraits(prioritizedCandidate == candidate ? .isSelected : [])
+                    }
+                }
+            } else if experiment != .layers {
                 HStack {
                     controlLabel("PRIORITIZE")
                     Spacer()
@@ -239,9 +270,9 @@ struct ContentView: View {
                     Spacer()
                     Text("Drag to constrain").font(.system(size: 10)).foregroundStyle(LabTheme.muted)
                 }
-                Slider(value: widthBinding, in: 240...maximum, step: 1)
+                Slider(value: widthBinding, in: minimum...maximum, step: 1)
                     .accessibilityLabel("Available width")
-                    .accessibilityValue("\(Int(min(canvasWidth, maximum))) points")
+                    .accessibilityValue("\(Int(widthBinding.wrappedValue)) points")
             }
         }
     }
@@ -271,6 +302,7 @@ struct ContentView: View {
             return "First in line for extra space."
         case .layers: return priority > 0 ? "The text sets the bounds." : "The flexible shape fills the proposal."
         case .custom: return "Our layout. Our priority policy."
+        case .fits: return "First fit wins. Priority does not pick."
         }
     }
 
@@ -279,6 +311,7 @@ struct ContentView: View {
         case .stacks: "Each block keeps a 56 pt minimum. Try 1 and 100: priority is an ordering, not a size multiplier."
         case .layers: "The dashed outline is the outer frame. The solid outline measures the ZStack inside it."
         case .custom: "This row sorts by priority and gives equal widths. Ties keep their original order."
+        case .fits: "Change priority: selection stays the same. Change width or declaration order: selection can change. If neither fits, the last candidate is used."
         }
     }
 
@@ -333,6 +366,13 @@ struct ContentView: View {
             }
             // Place equal-width cells in this order.
             """
+        case .fits:
+            let candidates: [FitCandidate] = compactFirst ? [.compact, .wide] : [.wide, .compact]
+            let lines = candidates.map { candidate in
+                let value = candidate == prioritizedCandidate ? priority : 0
+                return "    candidate(.\(candidate.rawValue)) // \(Int(candidate.width)) pt\n        .layoutPriority(\(Int(value)))"
+            }
+            return "ViewThatFits(in: .horizontal) {\n" + lines.joined(separator: "\n") + "\n}"
         }
     }
 
@@ -371,23 +411,23 @@ struct ContentView: View {
 }
 
 private enum Experiment: String, CaseIterable, Identifiable {
-    case stacks, layers, custom
+    case stacks, layers, custom, fits
     var id: Self { self }
     var number: String {
-        switch self { case .stacks: "01"; case .layers: "02"; case .custom: "03" }
+        switch self { case .stacks: "01"; case .layers: "02"; case .custom: "03"; case .fits: "04" }
     }
     var title: String {
-        switch self { case .stacks: "Stacks"; case .layers: "Layers"; case .custom: "Custom" }
+        switch self { case .stacks: "Stacks"; case .layers: "Layers"; case .custom: "Custom"; case .fits: "Fits" }
     }
     var container: String {
-        switch self { case .stacks: "HStack"; case .layers: "ZStack"; case .custom: "PriorityOrderedRow" }
+        switch self { case .stacks: "HStack"; case .layers: "ZStack"; case .custom: "PriorityOrderedRow"; case .fits: "ViewThatFits" }
     }
     var symbol: String {
-        switch self { case .stacks: "rectangle.split.3x1"; case .layers: "square.3.layers.3d"; case .custom: "arrow.left.arrow.right" }
+        switch self { case .stacks: "rectangle.split.3x1"; case .layers: "square.3.layers.3d"; case .custom: "arrow.left.arrow.right"; case .fits: "rectangle.2.swap" }
     }
 }
 
-private enum LabTheme {
+enum LabTheme {
     static let background = Color(red: 0.04, green: 0.07, blue: 0.11)
     static let surface = Color(red: 0.08, green: 0.12, blue: 0.17)
     static let well = Color(red: 0.05, green: 0.09, blue: 0.13)
